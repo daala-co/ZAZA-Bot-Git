@@ -1,4 +1,4 @@
-import os
+
 import telebot
 import requests
 import pandas as pd
@@ -6,105 +6,87 @@ import ta
 from dotenv import load_dotenv
 
 load_dotenv()
+
 TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 
-wallet_1 = ["AAVE", "ADA", "ALGO", "APE", "ATOM", "BTC", "DOGE", "DOT", "ETH", "FIL", "GRT", "HBAR", "LINK", "LTC", "ONDO", "PEPE", "POL", "RNDR", "SAND", "SOL", "UNI", "USDT", "XLM", "XRP"]
-wallet_2 = ["TAO", "INJ", "FET", "CKB", "KAS", "RSR", "JASMY", "SHIB", "PEPE", "VIRTUAL", "ANKR", "CFX", "VANA", "BRETT", "BONK", "ARKM", "BICO", "IMX", "MOVE", "BEAMX", "ATH", "PENGU", "FLOKI", "TRUMP", "AUDIO"]
+portfolio_1 = [
+    "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "ATOMUSDT", "BTCUSDT",
+    "DOGEUSDT", "DOTUSDT", "ETHUSDT", "FILUSDT", "GRTUSDT", "HBARUSDT",
+    "LINKUSDT", "LTCUSDT", "ONDOUSDT", "PEPEUSDT", "POLUSDT", "RNDRUSDT",
+    "SANDUSDT", "SOLUSDT", "UNIUSDT", "XLMUSDT", "XRPUSDT"
+]
 
-def get_rsi(symbol, interval="1h", limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+portfolio_2 = [
+    "TAOUSDT", "INJUSDT", "FETUSDT", "CKBUSDT", "KASUSDT", "RSRUSDT",
+    "JASMYUSDT", "SHIBUSDT", "PEPEUSDT", "VIRTUALUSDT", "ANKRUSDT",
+    "CFXUSDT", "VANAUSDT", "BRETTUSDT", "BONKUSDT", "ARKMUSDT",
+    "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT",
+    "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"
+]
+
+def get_data(symbol):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=4h&limit=100"
+    data = requests.get(url).json()
+    df = pd.DataFrame(data, columns=[
+        "timestamp", "open", "high", "low", "close", "volume",
+        "close_time", "quote_asset_volume", "number_of_trades",
+        "taker_buy_base", "taker_buy_quote", "ignore"
+    ])
+    df["close"] = pd.to_numeric(df["close"])
+    df["volume"] = pd.to_numeric(df["volume"])
+    df["rsi_4h"] = ta.momentum.RSIIndicator(df["close"], window=14).rsi()
+    df["macd"] = ta.trend.MACD(df["close"]).macd_diff()
+    df["ma50"] = df["close"].rolling(window=50).mean()
+    df["ma200"] = df["close"].rolling(window=200).mean()
+    return df
+
+def analyze(symbol):
     try:
-        response = requests.get(url)
-        data = response.json()
-        if not isinstance(data, list):
-            return None
-        df = pd.DataFrame(data, columns=[
-            'timestamp', 'open', 'high', 'low', 'close', 'volume',
-            'close_time', 'quote_asset_volume', 'number_of_trades',
-            'taker_buy_base_asset_volume', 'taker_buy_quote_asset_volume', 'ignore'
-        ])
-        df['close'] = df['close'].astype(float)
-        rsi = ta.momentum.RSIIndicator(close=df['close'], window=14).rsi()
-        return round(rsi.iloc[-1], 2)
-    except:
-        return None
-
-def analyze_rsi(cryptos):
-    text = ""
-    surachat = []
-    survente = []
-
-    for symbol in cryptos:
-        pair = symbol + "USDT"
-        rsi = get_rsi(pair)
-        if rsi is None:
-            continue
+        df = get_data(symbol)
+        rsi = df["rsi_4h"].iloc[-1]
+        macd = df["macd"].iloc[-1]
+        ma50 = df["ma50"].iloc[-1]
+        ma200 = df["ma200"].iloc[-1]
+        volume = df["volume"].iloc[-1]
+        signal = "🔍 Surveillance"
         if rsi > 70:
-            surachat.append((pair, rsi))
+            signal = "🔴 Vente (surachat)"
         elif rsi < 30:
-            survente.append((pair, rsi))
+            signal = "🟢 Achat (survente)"
+        elif macd > 0:
+            signal = "🟢 Achat MACD"
+        elif macd < 0:
+            signal = "🔴 Vente MACD"
 
-    if surachat:
-        text += "⚠️ Surachat détecté :\n"
-        for pair, rsi in surachat:
-            text += f"{pair} → RSI {rsi}\n"
+        rsi_emoji = "⚠️" if rsi > 70 or rsi < 30 else "✅"
+        macd_emoji = "📈" if macd > 0 else "📉"
+        ma_trend = "⬆️" if ma50 > ma200 else "⬇️"
+        volume_emoji = "📊" if volume > df["volume"].mean() else "💤"
 
-    if survente:
-        text += "\n🟢 Survente détectée :\n"
-        for pair, rsi in survente:
-            text += f"{pair} → RSI {rsi}\n"
+        return f"{symbol} :
+{rsi_emoji} RSI 4h : {rsi:.2f}
+{macd_emoji} MACD : {macd:.2f}
+{ma_trend} MA50/MA200
+{volume_emoji} Volume : {volume:.2f}
+{signal}
+"
+    except Exception as e:
+        return f"{symbol} : erreur d'analyse"
 
-    return text if text else "Aucune situation de surachat/survente détectée."
+def analyze_portfolio(portfolio):
+    return "\n\n".join([analyze(symbol) for symbol in portfolio])
 
-@bot.message_handler(commands=['P1', 'portefeuille1'])
-def portefeuille1(message):
-    text = "📊 RSI - Portefeuille 1 :\n"
-    for symbol in wallet_1:
-        pair = symbol + "USDT"
-        rsi = get_rsi(pair)
-        if rsi:
-            emoji = "📈" if rsi > 70 else "📉" if rsi < 30 else "➖"
-            text += f"{emoji} {pair} → RSI {rsi}\n"
-    bot.send_message(message.chat.id, text)
-
-@bot.message_handler(commands=['P2'])
-def portefeuille2(message):
-    text = "📊 RSI - Portefeuille 2 :\n"
-    for symbol in wallet_2:
-        pair = symbol + "USDT"
-        rsi = get_rsi(pair)
-        if rsi:
-            emoji = "📈" if rsi > 70 else "📉" if rsi < 30 else "➖"
-            text += f"{emoji} {pair} → RSI {rsi}\n"
-    bot.send_message(message.chat.id, text)
-
-@bot.message_handler(commands=['SS'])
-def only_surachat_survente(message):
-    result = analyze_rsi(wallet_1 + wallet_2)
+@bot.message_handler(commands=["P1", "portefeuille1"])
+def handle_p1(message):
+    bot.send_message(message.chat.id, "Analyse du portefeuille 1 en cours...")
+    result = analyze_portfolio(portfolio_1)
     bot.send_message(message.chat.id, result)
 
-@bot.message_handler(commands=['S'])
-def signaux_clairs(message):
-    text = ""
-    for symbol in wallet_1 + wallet_2:
-        pair = symbol + "USDT"
-        rsi = get_rsi(pair)
-        if rsi is None:
-            continue
-        if rsi > 70:
-            text += f"📈 Achat → {pair} (RSI {rsi})\n"
-        elif rsi < 30:
-            text += f"📉 Vente → {pair} (RSI {rsi})\n"
-    bot.send_message(message.chat.id, text or "Aucun signal clair détecté.")
+@bot.message_handler(commands=["P2"])
+def handle_p2(message):
+    bot.send_message(message.chat.id, "Analyse du portefeuille 2 en cours...")
+    result = analyze_portfolio(portfolio_2)
+    bot.send_message(message.chat.id, result)
 
-@bot.message_handler(commands=['tot'])
-def resume_total(message):
-    bot.send_message(message.chat.id, "📦 Portefeuille total : résumé en cours de préparation... (à compléter)")
-
-@bot.message_handler(commands=['start', 'alert'])
-def welcome(message):
-    bot.send_message(message.chat.id, "Salut ! Tape /P1, /P2, /SS ou /S pour voir les signaux crypto.")
-
-print("✅ Bot en ligne")
-bot.infinity_polling()
+bot.polling()

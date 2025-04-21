@@ -1,80 +1,87 @@
 
 import os
-import time
+import logging
 import telebot
 import requests
-import pandas as pd
-import ta
+from datetime import datetime
+import time
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = telebot.TeleBot(TELEGRAM_TOKEN)
+from dotenv import load_dotenv
+load_dotenv()
+
+TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = telebot.TeleBot(TOKEN)
 
 CRYPTO_LIST = [
-    "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "ATOMUSDT", "BTCUSDT", "DOGEUSDT", "DOTUSDT", "ETHUSDT",
-    "FILUSDT", "GRTUSDT", "HBARUSDT", "LINKUSDT", "LTCUSDT", "ONDOUSDT", "PEPEUSDT", "POLUSDT", "RNDRUSDT",
-    "SANDUSDT", "SOLUSDT", "UNIUSDT", "USDTUSDT", "XLMUSDT", "XRPUSDT", "TAOUSDT", "INJUSDT", "FETUSDT",
-    "CKBUSDT", "KASUSDT", "RSRUSDT", "JASMYUSDT", "SHIBUSDT", "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT",
-    "BRETTUSDT", "BONKUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT", "PENGUUSDT",
-    "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"
+    "BTC", "ETH", "AUDIO", "SOL", "LINK", "ATOM", "INJ", "FET", "DOT",
+    "MATIC", "ADA", "TAO", "PEPE", "XRP", "GRT"
 ]
 
-def fetch_ohlcv(symbol, interval="4h", limit=100):
+def get_rsi(symbol: str, interval: str = "4h") -> float:
     url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit=100"
-    data = requests.get(url).json()
-    df = pd.DataFrame(data, columns=[
-        'time','open','high','low','close','volume','close_time','qav','num_trades','tbbav','tbqav','ignore'
-    ])
-    df['close'] = df['close'].astype(float)
-    df['volume'] = df['volume'].astype(float)
-    return df
+    response = requests.get(url)
+    data = response.json()
 
-def analyze(symbol):
-    try:
-        df = fetch_ohlcv(symbol)
-        close = df['close']
-        volume = df['volume']
+    if "code" in data:
+        return None
 
-        rsi = ta.momentum.RSIIndicator(close).rsi().iloc[-1]
-        macd = ta.trend.MACD(close)
-        macd_diff = macd.macd_diff().iloc[-1]
-        ma50 = close.rolling(window=50).mean().iloc[-1]
-        ma100 = close.rolling(window=100).mean().iloc[-1]
-        ma200 = close.rolling(window=200).mean().iloc[-1]
-        last_price = close.iloc[-1]
-        vol_now = volume.iloc[-1]
-        vol_avg = volume.rolling(window=14).mean().iloc[-1]
+    closes = [float(x[4]) for x in data]
 
-        if rsi < 30 and macd_diff > 0 and vol_now > vol_avg:
-            signal = "🟢 ACHAT potentiel"
-        elif rsi > 70:
-            signal = "🔴 SURACHAT (possible vente)"
-        elif rsi < 30:
-            signal = "🟠 Survente (attente rebond)"
+    gains = []
+    losses = []
+
+    for i in range(1, len(closes)):
+        change = closes[i] - closes[i - 1]
+        if change > 0:
+            gains.append(change)
+            losses.append(0)
         else:
-            signal = "⚪ Neutre"
+            gains.append(0)
+            losses.append(abs(change))
 
-        return f"""
-🔎 {symbol}
-Prix : {last_price:.2f} $
-RSI 4h : {rsi:.2f}
-MACD Δ : {macd_diff:.4f}
-MA50 : {ma50:.2f} | MA100 : {ma100:.2f} | MA200 : {ma200:.2f}
-Volume actuel : {vol_now:.0f} | Moy. 14j : {vol_avg:.0f}
-Signal : {signal}
-"""
-    except Exception as e:
-        return f"{symbol} → Erreur : {str(e)}"
+    avg_gain = sum(gains[-14:]) / 14
+    avg_loss = sum(losses[-14:]) / 14
+
+    if avg_loss == 0:
+        return 100.0
+
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return round(rsi, 2)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Bienvenue ! Tape /alert pour voir l’analyse complète de ton portefeuille.")
+    bot.reply_to(message, "Salut ! Tape /alert pour voir les signaux crypto en surachat ou survente.")
 
 @bot.message_handler(commands=['alert'])
 def send_alert(message):
-    bot.send_message(message.chat.id, "Analyse en cours, un instant...")
-    for symbol in CRYPTO_LIST:
-        result = analyze(symbol)
-        bot.send_message(message.chat.id, result)
-        time.sleep(1)
+    overbought = []
+    oversold = []
 
-bot.polling()
+    for crypto in CRYPTO_LIST:
+        symbol = f"{crypto}USDT"
+        rsi = get_rsi(symbol)
+        if rsi is None:
+            continue
+        if rsi > 70:
+            overbought.append(f"{symbol} → RSI {rsi}")
+        elif rsi < 30:
+            oversold.append(f"{symbol} → RSI {rsi}")
+        time.sleep(1.1)  # Évite le rate limit Binance
+
+    alerts = []
+    if overbought:
+        alerts.append("⚠️ Surachat détecté :")
+        alerts += overbought
+    if oversold:
+        alerts.append("\n📉 Survente détectée :")
+        alerts += oversold
+
+    if alerts:
+        bot.reply_to(message, "\n".join(alerts))
+    else:
+        bot.reply_to(message, "Aucun signal de surachat ou survente détecté pour le moment.")
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    bot.polling()

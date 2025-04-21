@@ -1,142 +1,138 @@
 
-import telebot
+import os
 import requests
+import telebot
 import pandas as pd
-import numpy as np
+from dotenv import load_dotenv
 from ta.momentum import RSIIndicator
 from ta.trend import MACD, SMAIndicator
-from dotenv import load_dotenv
-import os
 
 load_dotenv()
-TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = telebot.TeleBot(TOKEN)
+bot = telebot.TeleBot(os.getenv("TELEGRAM_TOKEN"))
 
-# Portefeuilles
-portefeuille_1 = ["AAVE", "ADA", "ALGO", "APE", "ATOM", "BTC", "DOGE", "DOT", "ETH", "FIL", "GRT", "HBAR", "LINK", "LTC", "ONDO", "PEPE", "POL", "RNDR", "SAND", "SOL", "UNI", "XLM", "XRP"]
-portefeuille_2 = ["TAO", "INJ", "FET", "CKB", "KAS", "RSR", "JASMY", "SHIB", "PEPE", "VIRTUAL", "ANKR", "CFX", "VANA", "BRETT", "BONK", "ARKM", "BICO", "IMX", "MOVE", "BEAMX", "ATH", "PENGU", "FLOKI", "TRUMP", "AUDIO"]
+portfolio1 = [
+    "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "ATOMUSDT", "BTCUSDT", "DOGEUSDT", "DOTUSDT", "ETHUSDT",
+    "FILUSDT", "GRTUSDT", "HBARUSDT", "LINKUSDT", "LTCUSDT", "ONDOUSDT", "PEPEUSDT", "POLUSDT", "RNDRUSDT",
+    "SANDUSDT", "SOLUSDT", "UNIUSDT", "XLMUSDT", "XRPUSDT"
+]
 
-def get_crypto_data(symbol, interval="1d", limit=100):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+portfolio2 = [
+    "TAOUSDT", "INJUSDT", "FETUSDT", "CKBUSDT", "KASUSDT", "RSRUSDT", "JASMYUSDT", "SHIBUSDT", "VIRTUALUSDT",
+    "ANKRUSDT", "CFXUSDT", "VANAUSDT", "BRETTUSDT", "BONKUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT",
+    "BEAMXUSDT", "ATHUSDT", "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"
+]
+
+def get_klines(symbol):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=4h&limit=100"
     try:
         response = requests.get(url)
         data = response.json()
-        df = pd.DataFrame(data, columns=['timestamp','open','high','low','close','volume','close_time','quote_asset_volume','number_of_trades','taker_buy_base_asset_volume','taker_buy_quote_asset_volume','ignore'])
-        df['close'] = pd.to_numeric(df['close'])
-        df['volume'] = pd.to_numeric(df['volume'])
-        return df
-    except Exception as e:
+        if isinstance(data, list):
+            df = pd.DataFrame(data, columns=[
+                "timestamp", "open", "high", "low", "close", "volume",
+                "close_time", "quote_asset_volume", "number_of_trades",
+                "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore"
+            ])
+            df["close"] = pd.to_numeric(df["close"])
+            df["volume"] = pd.to_numeric(df["volume"])
+            return df
+    except:
         return None
+    return None
 
-def analyse_technique(symbol):
-    symbol_binance = symbol + "USDT"
-    df = get_crypto_data(symbol_binance, "1h")
+def analyze_symbol(symbol):
+    df = get_klines(symbol)
     if df is None or df.empty:
-        return None
+        return f"{symbol} ❌"
 
-    close = df['close']
-    volume = df['volume']
+    try:
+        close = df["close"]
+        rsi = RSIIndicator(close).rsi().iloc[-1]
+        macd_line = MACD(close).macd().iloc[-1]
+        macd_signal = MACD(close).macd_signal().iloc[-1]
+        ma50 = SMAIndicator(close, window=50).sma_indicator().iloc[-1]
+        ma200 = SMAIndicator(close, window=200).sma_indicator().iloc[-1]
+        price = close.iloc[-1]
+        volume = df["volume"].iloc[-1]
+    except:
+        return f"{symbol} ❌"
 
-    rsi = RSIIndicator(close=close).rsi().iloc[-1]
-    macd_line = MACD(close=close).macd_diff().iloc[-1]
-    ma50 = SMAIndicator(close, window=50).sma_indicator().iloc[-1]
-    ma200 = SMAIndicator(close, window=200).sma_indicator().iloc[-1]
-    current_price = close.iloc[-1]
+    signal = "🔍"
+    ma_emoji = ""
+    rsi_emoji = ""
+    macd_emoji = ""
 
-    tendance = "📉"
-    if current_price > ma50 and current_price > ma200:
-        tendance = "📈"
-    elif current_price > ma50:
-        tendance = "↗️"
-    elif current_price > ma200:
-        tendance = "↘️"
-
-    signal = "💤"
     if rsi < 30:
-        signal = "🟢 Achat"
+        rsi_emoji = "🟢 Survente"
+        signal = "✅ Achat"
     elif rsi > 70:
-        signal = "🔴 Vente"
+        rsi_emoji = "🔴 Surachat"
+        signal = "⚠️ Vente"
 
-    return {
-        "symbol": symbol,
-        "RSI": round(rsi, 2),
-        "MACD": round(macd_line, 3),
-        "MA50": round(ma50, 3),
-        "MA200": round(ma200, 3),
-        "Volume": round(volume.iloc[-1], 2),
-        "Tendance": tendance,
-        "Signal": signal,
-    }
+    if macd_line > macd_signal:
+        macd_emoji = "📈 MACD positif"
+    else:
+        macd_emoji = "📉 MACD négatif"
 
-def formater(analyse):
-    return f"{analyse['Tendance']} {analyse['symbol']} → RSI {analyse['RSI']} | MACD {analyse['MACD']} | MA50: {analyse['MA50']} | MA200: {analyse['MA200']} | 📊 Vol: {analyse['Volume']} | Signal: {analyse['Signal']}"
+    if price > ma50 and price > ma200:
+        ma_emoji = "🟢 Tendance haussière"
+    elif price < ma50 and price < ma200:
+        ma_emoji = "🔻 Tendance baissière"
+    else:
+        ma_emoji = "📊 Tendance neutre"
 
-def analyser_portefeuille(liste):
-    lignes = []
-    for symbole in liste:
-        try:
-            a = analyse_technique(symbole)
-            if a:
-                lignes.append(formater(a))
-        except:
-            continue
-    return lignes
+    return (
+        f"{symbol} → RSI {rsi:.2f} {rsi_emoji} | {macd_emoji} | {ma_emoji}"
+    )
 
 @bot.message_handler(commands=["P1", "portefeuille1"])
-def handle_P1(message):
-    resultats = analyser_portefeuille(portefeuille_1)
-    for bloc in split_messages(resultats):
-        bot.send_message(message.chat.id, "
-".join(bloc))
+def portefeuille1_handler(message):
+    text = "📊 *Analyse Portefeuille 1*\n"
+    for symbol in portfolio1:
+        result = analyze_symbol(symbol)
+        text += f"{result}\n"
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(commands=["P2"])
-def handle_P2(message):
-    resultats = analyser_portefeuille(portefeuille_2)
-    for bloc in split_messages(resultats):
-        bot.send_message(message.chat.id, "
-".join(bloc))
+def portefeuille2_handler(message):
+    text = "📊 *Analyse Portefeuille 2*\n"
+    for symbol in portfolio2:
+        result = analyze_symbol(symbol)
+        text += f"{result}\n"
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(commands=["SS"])
-def handle_surachat_survente(message):
-    resultats = []
-    for symbole in portefeuille_1 + portefeuille_2:
-        a = analyse_technique(symbole)
-        if not a: continue
-        if a["RSI"] < 30:
-            resultats.append(f"🟢 Survente → {a['symbol']} (RSI {a['RSI']})")
-        elif a["RSI"] > 70:
-            resultats.append(f"🔴 Surachat → {a['symbol']} (RSI {a['RSI']})")
-    if not resultats:
-        bot.send_message(message.chat.id, "Aucune crypto en surachat ou survente.")
-    else:
-        bot.send_message(message.chat.id, "
-".join(resultats))
+def rsi_extremes(message):
+    text = "⚠️ *Surachat/Survente détectés*\n"
+    for symbol in portfolio1 + portfolio2:
+        df = get_klines(symbol)
+        if df is not None:
+            rsi = RSIIndicator(df["close"]).rsi().iloc[-1]
+            if rsi > 70 or rsi < 30:
+                text += f"{symbol} → RSI {rsi:.2f}\n"
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(commands=["S"])
-def handle_signaux(message):
-    resultats = []
-    for symbole in portefeuille_1 + portefeuille_2:
-        a = analyse_technique(symbole)
-        if not a: continue
-        if "Achat" in a["Signal"] or "Vente" in a["Signal"]:
-            resultats.append(f"📈 {a['Signal']} → {a['symbol']} (RSI {a['RSI']})")
-    if not resultats:
-        bot.send_message(message.chat.id, "Aucun signal d'achat ou de vente clair.")
-    else:
-        bot.send_message(message.chat.id, "
-".join(resultats))
+def signal_handler(message):
+    text = "📈 *Signal Achat/Vente*\n"
+    for symbol in portfolio1 + portfolio2:
+        df = get_klines(symbol)
+        if df is not None:
+            rsi = RSIIndicator(df["close"]).rsi().iloc[-1]
+            macd_line = MACD(df["close"]).macd().iloc[-1]
+            macd_signal = MACD(df["close"]).macd_signal().iloc[-1]
+            if rsi < 30 or (macd_line > macd_signal and rsi < 50):
+                text += f"✅ Achat → {symbol} (RSI {rsi:.2f})\n"
+            elif rsi > 70 or (macd_line < macd_signal and rsi > 50):
+                text += f"❌ Vente → {symbol} (RSI {rsi:.2f})\n"
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+@bot.message_handler(commands=["tot"])
+def total_summary(message):
+    bot.send_message(message.chat.id, "💼 Portefeuille total : fonctionnalité à connecter aux valeurs CHF/USD si disponible.")
 
 @bot.message_handler(commands=["start", "help"])
 def send_welcome(message):
-    bot.send_message(message.chat.id, "Bienvenue !
-Commande disponibles :
-/P1 → Portefeuille 1
-/P2 → Portefeuille 2
-/SS → Surachat/Survente
-/S → Signal achat/vente")
+    bot.send_message(message.chat.id, "Bienvenue sur ZAZA_crypto_BOT ! Tape /P1, /P2, /SS, /S ou /tot")
 
-def split_messages(lines, max_per_message=20):
-    return [lines[i:i+max_per_message] for i in range(0, len(lines), max_per_message)]
-
-print("🤖 Bot en ligne...")
 bot.infinity_polling()

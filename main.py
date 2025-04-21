@@ -1,62 +1,96 @@
-
 import os
 import requests
 import pandas as pd
-import telebot
-from ta.momentum import RSIIndicator
-from ta.trend import MACD
-from ta.trend import SMAIndicator
+import time
 from dotenv import load_dotenv
+import telebot
+import ta
 
 load_dotenv()
-bot = telebot.TeleBot(os.getenv("TELEGRAM_TOKEN"))
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Exemple de portefeuille
-portfolio = ["BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT", "INJUSDT", "FETUSDT", "DOTUSDT", "MATICUSDT", "ADAUSDT", "TAOUSDT", "PEPEUSDT", "XRPUSDT", "GRTUSDT"]
+# ============================== CONFIGURATION ==============================
 
-def get_technical_indicators(symbol):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=4h&limit=100"
-    response = requests.get(url)
-    if response.status_code != 200:
-        return None
+portfolio1 = [
+    "BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT", "INJUSDT",
+    "FETUSDT", "DOTUSDT", "MATICUSDT", "ADAUSDT", "TAOUSDT", "PEPEUSDT", "XRPUSDT", "GRTUSDT"
+]
 
-    ohlc = pd.DataFrame(response.json(), columns=[
-        "timestamp", "open", "high", "low", "close", "volume", "_", "_", "_", "_", "_", "_"
+portfolio2 = [
+    "TAOUSDT", "INJUSDT", "FETUSDT", "CKBUSDT", "KASUSDT", "RSRUSDT", "JASMYUSDT", "SHIBUSDT",
+    "PEPEUSDT", "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT", "BRETTUSDT", "BONKUSDT",
+    "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT", "PENGUUSDT",
+    "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"
+]
+
+# ============================== UTILITAIRES ==============================
+
+def get_rsi(symbol):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=1h&limit=100"
+    data = requests.get(url).json()
+    df = pd.DataFrame(data, columns=[
+        "timestamp", "open", "high", "low", "close", "volume",
+        "close_time", "quote_asset_volume", "number_of_trades",
+        "taker_buy_base_asset_volume", "taker_buy_quote_asset_volume", "ignore"
     ])
-    ohlc["close"] = pd.to_numeric(ohlc["close"])
-    ohlc["volume"] = pd.to_numeric(ohlc["volume"])
+    df["close"] = df["close"].astype(float)
+    rsi = ta.momentum.RSIIndicator(df["close"], window=14)
+    rsi_value = rsi.rsi().iloc[-1]
+    return round(rsi_value, 2)
 
-    rsi = RSIIndicator(close=ohlc["close"]).rsi().iloc[-1]
-    macd = MACD(close=ohlc["close"])
-    macd_value = macd.macd().iloc[-1]
-    macd_signal = macd.macd_signal().iloc[-1]
-    ma50 = SMAIndicator(close=ohlc["close"], window=50).sma_indicator().iloc[-1]
-    ma200 = SMAIndicator(close=ohlc["close"], window=200).sma_indicator().iloc[-1]
-    price = ohlc["close"].iloc[-1]
+def get_signal(symbol):
+    rsi = get_rsi(symbol)
+    if rsi > 70:
+        return "🔴 Surachat", rsi
+    elif rsi < 30:
+        return "🟢 Survente", rsi
+    else:
+        return None, rsi
 
-    trend = "⬆️ Haussière" if ma50 > ma200 else "⬇️ Baissière" if ma50 < ma200 else "➡️ Neutre"
-    macd_status = "📈 MACD positif" if macd_value > macd_signal else "📉 MACD négatif"
-    status = "🔴 Surachat" if rsi > 70 else "🟢 Survente" if rsi < 30 else "⚪ Neutre"
+# ============================== COMMANDES ==============================
 
-    return {
-        "symbol": symbol,
-        "rsi": round(rsi, 2),
-        "macd": macd_status,
-        "trend": trend,
-        "status": status
-    }
-
-@bot.message_handler(commands=["P1"])
-def analyse_portefeuille1(message):
-    text = "📊 *Analyse Portefeuille 1*
-
-"
-    for symbol in portfolio:
-        data = get_technical_indicators(symbol)
-        if data:
-            text += f"{data['symbol']} → RSI {data['rsi']} | {data['macd']} | {data['trend']} | {data['status']}
-
-"
+@bot.message_handler(commands=['P1', 'portefeuille1'])
+def handle_portfolio1(message):
+    text = "📊 *Analyse Portefeuille 1*\n\n"
+    for symbol in portfolio1:
+        try:
+            signal, rsi = get_signal(symbol)
+            line = f"{symbol} → RSI {rsi}"
+            if signal:
+                line += f" | {signal}"
+            text += line + "\n\n"
+        except Exception as e:
+            print(f"Erreur {symbol} : {e}")
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-print("Bot prêt.")
+@bot.message_handler(commands=['P2', 'portefeuille2'])
+def handle_portfolio2(message):
+    text = "📊 *Analyse Portefeuille 2*\n\n"
+    for symbol in portfolio2:
+        try:
+            signal, rsi = get_signal(symbol)
+            line = f"{symbol} → RSI {rsi}"
+            if signal:
+                line += f" | {signal}"
+            text += line + "\n\n"
+        except Exception as e:
+            print(f"Erreur {symbol} : {e}")
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+@bot.message_handler(commands=['SS'])
+def handle_surachat_survente(message):
+    text = "🔍 *Cryptos en surachat ou survente :*\n\n"
+    for symbol in portfolio1 + portfolio2:
+        try:
+            signal, rsi = get_signal(symbol)
+            if signal:
+                text += f"{symbol} → RSI {rsi} | {signal}\n\n"
+        except:
+            continue
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+# ============================== LANCEMENT ==============================
+
+print("🤖 Bot lancé...")
+bot.polling()

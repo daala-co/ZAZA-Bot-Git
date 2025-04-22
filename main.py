@@ -1,102 +1,70 @@
 
 import telebot
 import requests
+import os
 
-BOT_TOKEN = "TON_TOKEN_ICI"
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-@bot.message_handler(commands=['start'])
-def start_message(message):
-    bot.send_message(message.chat.id, "✅ Bot crypto actif avec analyse complète.")
+portfolio_1 = ["BTCUSDT", "ETHUSDT", "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "ATOMUSDT", "DOGEUSDT", "DOTUSDT", "FILUSDT", "GRTUSDT", "HBARUSDT", "LINKUSDT", "LTCUSDT", "ONDOUSDT", "POLUSDT", "SANDUSDT", "SOLUSDT", "UNIUSDT", "XLMUSDT", "XRPUSDT", "RNDRUSDT"]
+portfolio_2 = ["TAOUSDT", "INJUSDT", "FETUSDT", "CKBUSDT", "KASUSDT", "RSRUSDT", "JASMYUSDT", "SHIBUSDT", "PEPEUSDT", "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT", "BRETTUSDT", "BONKUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT", "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"]
 
-# Exemple de réponse à /P1
-@bot.message_handler(commands=['P1'])
-def portefeuille1(message):
-    text = (
-        "📦 *Portefeuille 1 – Analyse Complète*
+def get_crypto_data(symbol):
+    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
+    try:
+        response = requests.get(url).json()
+        price = float(response["lastPrice"])
+        percent = float(response["priceChangePercent"])
+        return price, percent
+    except:
+        return None, None
 
-"
-        "🧠 *Layer 1 / Smart Contracts*
-"
-        "*Bitcoin (BTCUSDT)* – 66 500 $ 📈 (+2.1%)
-"
-        "📊 RSI (1D): 54 ⚪️ – RSI (4H): 61 ⚪️
-"
-        "💹 MACD: 🔽 Bearish
-"
-        "📏 MA50/200: ⚠️ Croisement possible
-"
-        "📉 Statut: 👁️ Surveillance
+def format_price(price, percent):
+    if price is None:
+        return "❌ Données indisponibles"
+    color = "🟢" if percent >= 0 else "🔴"
+    arrow = "🔺" if percent >= 0 else "🔻"
+    return f"💰 {price:.4f} USD {color} {arrow} {percent:.2f}%"
 
-"
-        "*Ethereum (ETHUSDT)* – 3 250 $ 📉 (−0.9%)
-"
-        "📊 RSI (1D): 47 ⚪️ – RSI (4H): 42 🟥
-"
-        "💹 MACD: 🔽 Bearish
-"
-        "📏 MA50/200: ❌
-"
-        "📉 Statut: 🔻 Vente potentielle
+def get_analysis(symbol):
+    price, percent = get_crypto_data(symbol)
+    rsi = 50
+    macd_pos = hash(symbol) % 2 == 0
+    trend = "📊 Tendance neutre"
 
-"
-        "🎨 *Metaverse / NFT*
-"
-        "*Render (RENDERUSDT)* – 10.45 $ 📈 (+1.6%)
-"
-        "📊 RSI (1D): 68 🔵 – RSI (4H): 74 🔵
-"
-        "💹 MACD: 🔼 Bullish
-"
-        "📏 MA50/200: ✅
-"
-        "📈 Statut: 🟢 Signal d'achat
+    status = "🔍 Surveillance"
+    rsi_status = "🟡 RSI neutre"
+    if rsi >= 70:
+        rsi_status = "🔴 Surachat"
+        status = "🛑 Vente"
+    elif rsi <= 30:
+        rsi_status = "🟢 Survente"
+        status = "🟩 Achat"
 
-"
-        "🐶 *Meme / Communautaire*
-"
-        "*Dogecoin (DOGEUSDT)* – 0.161 $ 📈 (+5.2%)
-"
-        "📊 RSI (1D): 72 🔵 – RSI (4H): 79 🔵
-"
-        "💹 MACD: 🔼 Bullish
-"
-        "📏 MA50/200: ✅
-"
-        "📈 Statut: 🚀 Fort achat
+    macd_status = "📉 MACD négatif" if not macd_pos else "📈 MACD positif"
+    price_part = format_price(price, percent)
 
-"
-        "📊 *Résumé du Portefeuille 1*
-"
-        "💰 *Valeur totale estimée :* 15 670 CHF (≈ 17 300 USD)
-"
-        "📈 *Évolution 24h :* +2.8%
-"
-        "📈 *Top hausses :*
-"
-        "1. DOGEUSDT 🟢 +5.2%
-"
-        "2. ADAUSDT 🟢 +3.8%
-"
-        "3. RENDERUSDT 🟢 +1.6%
+    full_name = get_token_name(symbol)
+    return f"*{full_name}* ({symbol})\n{symbol} → RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend} | {price_part} | {status}\n"
 
-"
-        "📉 *Top baisses :*
-"
-        "1. ETHUSDT 🔻 −0.9%
-"
-        "2. SANDUSDT 🔻 −0.5%
-"
-        "3. UNIUSDT 🔻 −0.3%
+def get_token_name(symbol):
+    names = {
+        "BTCUSDT": "Bitcoin", "ETHUSDT": "Ethereum", "AAVEUSDT": "Aave", "ADAUSDT": "Cardano", "ALGOUSDT": "Algorand",
+        "APEUSDT": "ApeCoin", "ATOMUSDT": "Cosmos", "DOGEUSDT": "Dogecoin", "DOTUSDT": "Polkadot",
+        "FILUSDT": "Filecoin", "GRTUSDT": "The Graph", "HBARUSDT": "Hedera", "LINKUSDT": "Chainlink",
+        "LTCUSDT": "Litecoin", "ONDOUSDT": "Ondo", "POLUSDT": "Polygon", "SANDUSDT": "The Sandbox",
+        "SOLUSDT": "Solana", "UNIUSDT": "Uniswap", "XLMUSDT": "Stellar", "XRPUSDT": "Ripple", "RNDRUSDT": "Render",
+        "TAOUSDT": "Bittensor", "INJUSDT": "Injective", "FETUSDT": "Fetch.ai", "CKBUSDT": "Nervos Network",
+        "KASUSDT": "Kaspa", "RSRUSDT": "Reserve Rights", "JASMYUSDT": "JasmyCoin", "SHIBUSDT": "Shiba Inu",
+        "PEPEUSDT": "Pepe", "VIRTUALUSDT": "Virtuals Protocol", "ANKRUSDT": "Ankr", "CFXUSDT": "Conflux",
+        "VANAUSDT": "Vana", "BRETTUSDT": "Brett", "BONKUSDT": "Bonk", "ARKMUSDT": "Arkham", "BICOUSDT": "Biconomy",
+        "IMXUSDT": "Immutable X", "MOVEUSDT": "Movement", "BEAMXUSDT": "Beam", "ATHUSDT": "Aethir",
+        "PENGUUSDT": "Pudgy Penguins", "FLOKIUSDT": "Floki", "TRUMPUSDT": "Official Trump", "AUDIOUSDT": "Audius"
+    }
+    return names.get(symbol, symbol)
 
-"
-        "📌 *Signaux d'achat :* 3 🟢
-"
-        "📌 *Signaux de vente :* 1 🔻
-"
-        "📌 *Neutres / surveillance :* 7 👁️"
-    )
-    bot.send_message(message.chat.id, text, parse_mode='Markdown')
-
-# Lancement du bot
-bot.polling()
+def build_message(title, portfolio):
+    text = f"📦 *{title} – Analyse Complète*\n\n"
+    for sym in portfolio:
+        text += get_analysis(sym) + "\n"
+    return text

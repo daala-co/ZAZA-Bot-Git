@@ -71,7 +71,7 @@ def signal_response(message):
         return
     text = "*Signaux détectés :*"
     for sym in s_symbols:
-        text += get_analysis(sym) + "
+        text += get_analysis(sym) + "\n"
 "
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 

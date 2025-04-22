@@ -5,7 +5,7 @@ import os
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Catégories classées
+# Portefeuille 1
 categories = {
     "Blue Chips": ["BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "SOLUSDT", "LTCUSDT", "XRPUSDT", "XLMUSDT"],
     "DeFi & Finance": ["UNIUSDT", "AAVEUSDT", "LINKUSDT", "FILUSDT", "ATOMUSDT", "HBARUSDT"],
@@ -14,6 +14,7 @@ categories = {
     "Divers / Autres": ["ALGOUSDT", "DOGEUSDT", "ONDOUSDT", "POLUSDT", "VIRTUALUSDT", "MOVEUSDT"]
 }
 
+# Portefeuille 2
 categories_P2 = {
     "AI & Data": ["TAOUSDT", "INJUSDT", "FETUSDT", "RSRUSDT", "JASMYUSDT", "VANAUSDT", "ARKMUSDT"],
     "Infra & Layer 1/2": ["CKBUSDT", "KASUSDT", "CFXUSDT", "ANKRUSDT", "BEAMXUSDT", "BICOUSDT", "ATHUSDT"],
@@ -37,6 +38,12 @@ def format_price_change(percent):
     arrow = "🔺" if percent > 0 else "🔻"
     return f"{arrow} {percent:.2f}%"
 
+def format_price(price, percent):
+    if price is None:
+        return ""
+    color = "🟢" if percent > 0 else "🔴" if percent < 0 else "➖"
+    return f"{color} {price:.4f} USD"
+
 def get_analysis(symbol):
     price, percent = get_crypto_data(symbol)
     rsi = 50 + (hash(symbol) % 50 - 25)
@@ -54,10 +61,10 @@ def get_analysis(symbol):
 
     macd_status = "📈 MACD positif" if macd_pos else "📉 MACD négatif"
     trend_status = "📊 Tendance neutre"
-    price_str = f"💰 {price:.4f} USD" if price else ""
+    price_str = format_price(price, percent)
     change_str = format_price_change(percent)
 
-    full_text = f"{symbol} → RSI {rsi} | {rsi_status} | {macd_status} | {trend_status} | {price_str} {change_str} | {signal}"
+    full_text = f"{symbol} → RSI {rsi} | {rsi_status} | {macd_status} | {trend_status} | {price_str} {change_str} | {signal}\n"
     return full_text, signal, rsi_status
 
 def build_response(cats):

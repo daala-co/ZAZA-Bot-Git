@@ -53,9 +53,9 @@ def get_analysis(symbol):
     rsi = 50 + (hash(symbol) % 50 - 25)
     macd_pos = hash(symbol) % 2 == 0
 
+    text = "*📊 Analyse Portefeuille 1*"
     if rsi >= 70:
         rsi_status = "🔴 Surachat"
-    text = "*📊 Analyse Portefeuille 1*"
     elif rsi <= 30:
         rsi_status = "🟢 Survente"
         action = "🟩 Achat"

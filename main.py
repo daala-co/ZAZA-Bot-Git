@@ -68,8 +68,8 @@ def get_analysis(symbol):
     price_info = format_price(price, percent)
     token_name = symbol_to_name.get(symbol, symbol.replace("USDT", ""))
 
-    return f"*{token_name}* ({symbol})"
-{symbol} → RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | {price_info} | {action}
+    return f"*{token_name}* ({symbol})
+{symbol} -> RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | {price_info} | {action}
 "
 
 def build_message(title, portfolio):

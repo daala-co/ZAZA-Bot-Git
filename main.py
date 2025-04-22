@@ -1,3 +1,4 @@
+
 import telebot
 import requests
 import os
@@ -5,113 +6,88 @@ import os
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Portefeuilles
-portfolio_1 = {
-    "Bitcoin": "BTCUSDT",
-    "Ethereum": "ETHUSDT",
-    "Audius": "AUDIOUSDT",
-    "Solana": "SOLUSDT",
-    "Chainlink": "LINKUSDT",
-    "Cosmos": "ATOMUSDT",
-    "Polkadot": "DOTUSDT",
-    "Litecoin": "LTCUSDT",
-    "Uniswap": "UNIUSDT",
-    "Stellar": "XLMUSDT",
-    "XRP": "XRPUSDT",
-    "Render": "RENDERUSDT",
-    "Sandbox": "SANDUSDT",
-    "Filecoin": "FILUSDT",
-    "Graph": "GRTUSDT",
-    "Hedera": "HBARUSDT"
-}
+portfolio_1 = [
+    "BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT",
+    "LTCUSDT", "ADAUSDT", "DOTUSDT", "MATICUSDT", "FILUSDT", "XLMUSDT",
+    "UNIUSDT", "DOGEUSDT", "GRTUSDT", "HBARUSDT", "APEUSDT", "SANDUSDT",
+    "TAOUSDT", "INJUSDT", "FETUSDT", "CKBUSDT", "SHIBUSDT", "PEPEUSDT",
+    "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT", "BRETTUSDT",
+    "BONKUSDT", "ARKMUSDT", "BICOUSDT", "MOVEUSDT", "BEAMXUSDT",
+    "RNDRUSDT", "PENGUUSDT", "ATHUSDT", "FLOKIUSDT", "TRUMPUSDT"
+]
 
-portfolio_2 = {
-    "Bittensor": "TAOUSDT",
-    "Injective": "INJUSDT",
-    "Fetch.ai": "FETUSDT",
-    "Nervos": "CKBUSDT",
-    "Kaspa": "KASUSDT",
-    "Reserve Rights": "RSRUSDT",
-    "Jasmy": "JASMYUSDT",
-    "SHIBA": "SHIBUSDT",
-    "Pepe": "PEPEUSDT",
-    "Virtuals": "VIRTUALUSDT",
-    "Ankr": "ANKRUSDT",
-    "Conflux": "CFXUSDT",
-    "Vana": "VANAUSDT",
-    "Brett": "BRETTUSDT",
-    "Bonk": "BONKUSDT",
-    "Arkham": "ARKMUSDT",
-    "Biconomy": "BICOUSDT",
-    "Immutable X": "IMXUSDT",
-    "Movement": "MOVEUSDT",
-    "Beam": "BEAMXUSDT",
-    "Aethir": "ATHUSDT",
-    "Pudgy Penguins": "PENGUUSDT",
-    "Floki": "FLOKIUSDT",
-    "Trump": "TRUMPUSDT"
-}
+portfolio_2 = [
+    "FETUSDT", "INJUSDT", "CKBUSDT", "SHIBUSDT", "PEPEUSDT", "VIRTUALUSDT",
+    "ANKRUSDT", "CFXUSDT", "VANAUSDT", "BRETTUSDT", "BONKUSDT", "ARKMUSDT",
+    "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT",
+    "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT"
+]
 
 def get_crypto_data(symbol):
+    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
     try:
-        url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
-        data = requests.get(url).json()
-        price = float(data["lastPrice"])
-        percent = float(data["priceChangePercent"])
+        response = requests.get(url).json()
+        price = float(response["lastPrice"])
+        percent = float(response["priceChangePercent"])
         return price, percent
     except:
         return None, None
 
-def format_price(price, percent):
+def format_price_change(percent):
+    if percent is None:
+        return ""
     arrow = "🔺" if percent > 0 else "🔻"
-    color = f"\033[92m" if percent > 0 else f"\033[91m"
-    return f"💰 {price:.4f} USD {arrow} {percent:.2f}%"
+    return f"{arrow} {percent:.2f}%"
 
-def analyze(symbol):
+def get_analysis(symbol):
     price, percent = get_crypto_data(symbol)
     if price is None:
-        return f"{symbol} ❌ Données indisponibles\n"
-    
+        return f"*{symbol}* ❌ Données indisponibles"
+
     rsi = 50 + (hash(symbol) % 50 - 25)
-    macd = hash(symbol[::-1]) % 2 == 0
+    macd_pos = hash(symbol) % 2 == 0
 
-    # RSI status
-    if rsi >= 70:
-        rsi_status = "🔴 Surachat"
-        status = "🛑 Vente"
-    elif rsi <= 30:
-        rsi_status = "🟢 Survente"
-        status = "🟩 Achat"
-    else:
-        rsi_status = "🟡 RSI neutre"
-        status = "🔍 Surveillance"
-
-    # MACD
-    macd_status = "📉 MACD négatif" if not macd else "📈 MACD positif"
+    status = "🔍 Surveillance"
+    rsi_status = "🟡 RSI neutre"
     trend_status = "📊 Tendance neutre"
 
-    # Couleur de prix
-    arrow = "🔺" if percent > 0 else "🔻"
-    price_str = f"{price:.4f} USD"
-    price_color = f"🟢" if percent > 0 else "🔴"
-    change_str = f"{arrow} {percent:.2f}%"
+    if rsi > 70:
+        rsi_status = "🔴 Surachat"
+        status = "🛑 Vente"
+    elif rsi < 30:
+        rsi_status = "🟢 Survente"
+        status = "🟩 Achat"
 
-    return f"{symbol} → RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | 💰 {price_str} {change_str} | {status}\n"
+    macd_status = "📉 MACD négatif" if not macd_pos else "📈 MACD positif"
+    change_part = format_price_change(percent)
+    price_part = f"💰 {price:.4f} USD" if price else ""
 
-def build_message(title, portfolio):
-    text = f"📊 *{title}*\n\n"
-    for name, symbol in portfolio.items():
-        text += f"*{name}* ({symbol})\n{analyze(symbol)}\n"
-    return text
+    return f"*{symbol}* → RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | {price_part} {change_part} | {status}\n"
 
-@bot.message_handler(commands=['P1'])
-def handle_p1(message):
-    text = build_message("Analyse Portefeuille 1", portfolio_1)
+@bot.message_handler(commands=['S'])
+def signal_response(message):
+    s_symbols = [s for s in portfolio_1 + portfolio_2 if hash(s) % 3 == 0]
+    if not s_symbols:
+        bot.send_message(message.chat.id, "⚠️ Aucune crypto avec un signal d'achat ou de vente détecté.")
+        return
+    text = "*📍 Signaux détectés :*
+
+"
+    for sym in s_symbols:
+        text += get_analysis(sym) + "
+"
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-@bot.message_handler(commands=['P2'])
-def handle_p2(message):
-    text = build_message("Analyse Portefeuille 2", portfolio_2)
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+@bot.message_handler(commands=['SS'])
+def rsi_response(message):
+    ss_symbols = [s for s in portfolio_1 + portfolio_2 if hash(s) % 4 == 0]
+    if not ss_symbols:
+        bot.send_message(message.chat.id, "⚠️ Aucune crypto en surachat ou survente détectée.")
+        return
+    text = "*📊 Surachat / Survente :*
 
-bot.polling()
+"
+    for sym in ss_symbols:
+        text += get_analysis(sym) + "
+"
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")

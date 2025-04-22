@@ -55,7 +55,7 @@ def get_analysis(symbol):
 
     if rsi >= 70:
         rsi_status = "🔴 Surachat"
-        action = "🛑 Vente"
+    text = "*📊 Analyse Portefeuille 1*"
     elif rsi <= 30:
         rsi_status = "🟢 Survente"
         action = "🟩 Achat"

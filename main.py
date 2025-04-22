@@ -1,66 +1,87 @@
-
 import os
+import telebot
 import requests
 import pandas as pd
-import telebot
+import numpy as np
 from ta.momentum import RSIIndicator
-from ta.trend import MACD
-from ta.trend import SMAIndicator
+from ta.trend import MACD, SMAIndicator
 
-# Clés d’API (prises depuis Railway variables d’environnement)
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
-BINANCE_API_KEY = os.getenv("BINANCE_API_KEY")
-BINANCE_SECRET_KEY = os.getenv("BINANCE_SECRET_KEY")
-
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# Liste des cryptos portefeuille 1
-portfolio_1 = [
-    "BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT",
-    "INJUSDT", "FETUSDT", "DOTUSDT", "MATICUSDT", "ADAUSDT"
-]
+# Portefeuilles
+portefeuille_1 = ["BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT", "INJUSDT", "FETUSDT", "DOTUSDT", "MATICUSDT", "ADAUSDT"]
+portefeuille_2 = ["TAOUSDT", "PEPEUSDT", "GRTUSDT", "SHIBUSDT", "ANKRUSDT", "CFXUSDT", "BONKUSDT", "JASMYUSDT"]
 
-def get_klines(symbol, interval="1h", limit=100):
-    url = f"https://api.binance.com/api/v3/klines"
-    params = {"symbol": symbol, "interval": interval, "limit": limit}
-    response = requests.get(url, params=params)
-    return response.json()
+def get_klines(symbol, interval="4h", limit=100):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval={interval}&limit={limit}"
+    response = requests.get(url)
+    data = response.json()
+    df = pd.DataFrame(data, columns=["timestamp", "open", "high", "low", "close", "volume",
+                                     "close_time", "quote_asset_volume", "number_of_trades",
+                                     "taker_buy_base_volume", "taker_buy_quote_volume", "ignore"])
+    df["close"] = pd.to_numeric(df["close"])
+    return df
 
-def analyze_symbol(symbol):
+def analyze(symbol):
     try:
-        klines = get_klines(symbol)
-        df = pd.DataFrame(klines, columns=[
-            "timestamp", "open", "high", "low", "close", "volume",
-            "close_time", "quote_asset_volume", "num_trades",
-            "taker_buy_base", "taker_buy_quote", "ignore"
-        ])
-        df["close"] = pd.to_numeric(df["close"])
+        df = get_klines(symbol)
+        if df is None or df.empty:
+            return f"{symbol} 📛 Données manquantes"
 
-        rsi_value = RSIIndicator(close=df["close"], window=14).rsi().iloc[-1]
-        macd_val = MACD(close=df["close"]).macd_diff().iloc[-1]
-        ma50 = SMAIndicator(close=df["close"], window=50).sma_indicator().iloc[-1]
-        ma200 = SMAIndicator(close=df["close"], window=200).sma_indicator().iloc[-1]
+        close = df["close"]
+        rsi = RSIIndicator(close).rsi().iloc[-1]
+        macd = MACD(close).macd().iloc[-1]
+        signal = MACD(close).macd_signal().iloc[-1]
+        ma50 = SMAIndicator(close, window=50).sma_indicator().iloc[-1]
+        ma200 = SMAIndicator(close, window=200).sma_indicator().iloc[-1]
+        last_price = close.iloc[-1]
 
-        macd_emoji = "📈" if macd_val > 0 else "📉"
-        trend = "📏↑" if ma50 > ma200 else "📏↓" if ma50 < ma200 else "📏"
-        rsi_status = ""
-        if rsi_value > 70:
-            rsi_status = "🔴 Surachat"
-        elif rsi_value < 30:
-            rsi_status = "🔵 Survente"
+        emojis = []
+        statut = "🔍 Surveillance"
 
-        return f"{symbol} → RSI {rsi_value:.2f} | {macd_emoji} MACD | {trend} Tendance {rsi_status}"
+        # RSI
+        if rsi > 70:
+            emojis.append("🔴 Surachat")
+            statut = "🛑 Vente"
+        elif rsi < 30:
+            emojis.append("🟢 Survente")
+            statut = "🟢 Achat"
+        else:
+            emojis.append("🟡 RSI neutre")
+
+        # MACD
+        if macd > signal:
+            emojis.append("📈 MACD positif")
+        else:
+            emojis.append("📉 MACD négatif")
+
+        # MA50/200
+        if last_price > ma50 and last_price > ma200:
+            emojis.append("📊 Tendance haussière")
+        elif last_price < ma50 and last_price < ma200:
+            emojis.append("📉 Tendance baissière")
+        else:
+            emojis.append("📊 Tendance neutre")
+
+        result = f"{symbol} → RSI {rsi:.2f} | {' | '.join(emojis)} | {statut}"
+        return result
+
     except Exception as e:
-        return f"{symbol} → ❌ Erreur"
+        return f"{symbol} ❌ Erreur: {str(e)}"
+
+def envoyer_analyse(message, portefeuille, titre):
+    text = f"📊 *{titre}*\n\n"
+    for symbol in portefeuille:
+        text += analyze(symbol) + "\n\n"
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(commands=["P1", "portefeuille1"])
-def portefeuille_1_handler(message):
-    text = "📊 *Analyse Portefeuille 1*
+def handle_p1(message):
+    envoyer_analyse(message, portefeuille_1, "Analyse Portefeuille 1")
 
-"
-    for symbol in portfolio_1:
-        result = analyze_symbol(symbol)
-        text += result + "\n\n"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+@bot.message_handler(commands=["P2"])
+def handle_p2(message):
+    envoyer_analyse(message, portefeuille_2, "Analyse Portefeuille 2")
 
 bot.polling()

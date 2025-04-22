@@ -5,8 +5,8 @@ import os
 BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-portfolio_1 = ["BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT", "RNDRUSDT"]
-portfolio_2 = ["FETUSDT", "INJUSDT", "PEPEUSDT", "BONKUSDT", "PENGUUSDT", "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT", "BRETTUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT", "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT"]
+portfolio_1 = ["BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT", "FETUSDT", "INJUSDT", "DOTUSDT", "MATICUSDT", "ADAUSDT", "RNDRUSDT", "XLMUSDT", "XRPUSDT", "DOGEUSDT", "LTCUSDT", "FILUSDT", "GRTUSDT", "UNIUSDT", "AAVEUSDT"]
+portfolio_2 = ["TAOUSDT", "FETUSDT", "INJUSDT", "CKBUSDT", "KASUSDT", "RSRUSDT", "JASMYUSDT", "SHIBUSDT", "PEPEUSDT", "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT", "BRETTUSDT", "BONKUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT", "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"]
 
 
 def get_crypto_data(symbol):
@@ -23,71 +23,42 @@ def get_crypto_data(symbol):
 def format_price_change(percent):
     if percent is None:
         return ""
-    arrow = "🔺" if percent > 0 else "🔻"
+    arrow = "🔼" if percent > 0 else "🔽"
     return f"{arrow} {percent:.2f}%"
+
+
+def format_price_value(price, percent):
+    if price is None:
+        return "❌ Données indisponibles"
+    color = "🟢" if percent >= 0 else "🔴"
+    return f"💰 {price:.4f} USD {color}"
 
 
 def get_analysis(symbol):
     price, percent = get_crypto_data(symbol)
     rsi = 50 + (hash(symbol) % 50 - 25)
     macd_pos = hash(symbol) % 2 == 0
-    trend = "neutre"
 
+    name = symbol.replace("USDT", "")
+    status = ""
+    rsi_status = "🟡 RSI neutre"
     if rsi > 70:
         rsi_status = "🔴 Surachat"
         status = "🛑 Vente"
     elif rsi < 30:
         rsi_status = "🟢 Survente"
         status = "🟩 Achat"
-    else:
-        rsi_status = "🟡 RSI neutre"
-        status = "🔍 Surveillance"
 
     macd_status = "📉 MACD négatif" if not macd_pos else "📈 MACD positif"
     trend_status = "📊 Tendance neutre"
-
-    price_color = "🟢" if percent and percent > 0 else "🔴"
-    price_part = f"💰 {price:.4f} USD {price_color}" if price else f"{symbol} ❌ Données indisponibles"
+    price_part = format_price_value(price, percent)
     change_part = format_price_change(percent)
 
-    name = name_from_symbol(symbol)
-
-    return f"\n*{name} ({symbol})*\n{symbol} → RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | {price_part} {change_part} | {status}\n"
-
-
-def name_from_symbol(symbol):
-    name_map = {
-        "BTCUSDT": "Bitcoin",
-        "ETHUSDT": "Ethereum",
-        "AUDIOUSDT": "Audius",
-        "SOLUSDT": "Solana",
-        "LINKUSDT": "Chainlink",
-        "ATOMUSDT": "Cosmos",
-        "RNDRUSDT": "Render",
-        "FETUSDT": "Fetch.ai",
-        "INJUSDT": "Injective",
-        "PEPEUSDT": "Pepe",
-        "BONKUSDT": "Bonk",
-        "PENGUUSDT": "Pudgy Penguins",
-        "VIRTUALUSDT": "Virtuals Protocol",
-        "ANKRUSDT": "Ankr",
-        "CFXUSDT": "Conflux",
-        "VANAUSDT": "Vana",
-        "BRETTUSDT": "Brett",
-        "ARKMUSDT": "Arkham",
-        "BICOUSDT": "Biconomy",
-        "IMXUSDT": "Immutable X",
-        "MOVEUSDT": "Movement",
-        "BEAMXUSDT": "Beam",
-        "ATHUSDT": "Aethir",
-        "FLOKIUSDT": "Floki",
-        "TRUMPUSDT": "Trump"
-    }
-    return name_map.get(symbol, symbol)
+    return f"\n<b>{name}</b> ({symbol})\n{symbol} → RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | {price_part} {change_part} | {status}\n"
 
 
 def build_message(title, symbols):
-    text = f"*{title}*\n"
+    text = f"\ud83d\udcca <b>{title}</b>\n"
     for sym in symbols:
         text += get_analysis(sym) + "\n"
     return text
@@ -96,45 +67,43 @@ def build_message(title, symbols):
 def signal_response(message):
     s_symbols = [s for s in portfolio_1 + portfolio_2 if hash(s) % 3 == 0]
     if not s_symbols:
-        bot.send_message(message.chat.id, "⚠️ Aucune crypto avec un signal d'achat ou vente détecté.")
+        bot.send_message(message.chat.id, "\u26a0\ufe0f Aucune crypto avec un signal d'achat ou de vente", parse_mode="HTML")
         return
-    text = "*📊 Signaux détectés :*\n"
+    text = "\ud83d\udcca <b>Signaux détectés :</b>\n"
     for sym in s_symbols:
         text += get_analysis(sym) + "\n"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, text, parse_mode="HTML")
 
 
-def rsi_extreme_response(message):
-    s_symbols = [s for s in portfolio_1 + portfolio_2 if hash(s) % 7 == 0]
+def oversold_response(message):
+    s_symbols = [s for s in portfolio_1 + portfolio_2 if (50 + (hash(s) % 50 - 25)) < 30 or (50 + (hash(s) % 50 - 25)) > 70]
     if not s_symbols:
-        bot.send_message(message.chat.id, "⚠️ Aucune crypto en surachat ou survente détectée.")
+        bot.send_message(message.chat.id, "\u26a0\ufe0f Aucune crypto en surachat ou survente", parse_mode="HTML")
         return
-    text = "*📊 RSI Extrêmes :*\n"
+    text = "\ud83d\udcca <b>Cryptos en surachat / survente :</b>\n"
     for sym in s_symbols:
         text += get_analysis(sym) + "\n"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, text, parse_mode="HTML")
 
 
-@bot.message_handler(commands=["P1"])
+@bot.message_handler(commands=['P1'])
 def handle_p1(message):
-    text = build_message("📊 Analyse Portefeuille 1", portfolio_1)
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, build_message("Analyse Portefeuille 1", portfolio_1), parse_mode="HTML")
 
 
-@bot.message_handler(commands=["P2"])
+@bot.message_handler(commands=['P2'])
 def handle_p2(message):
-    text = build_message("📊 Analyse Portefeuille 2", portfolio_2)
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    bot.send_message(message.chat.id, build_message("Analyse Portefeuille 2", portfolio_2), parse_mode="HTML")
 
 
-@bot.message_handler(commands=["S"])
+@bot.message_handler(commands=['S'])
 def handle_signals(message):
     signal_response(message)
 
 
-@bot.message_handler(commands=["SS"])
-def handle_extremes(message):
-    rsi_extreme_response(message)
+@bot.message_handler(commands=['SS'])
+def handle_oversold(message):
+    oversold_response(message)
 
 
 bot.polling()

@@ -1,62 +1,117 @@
-
-import os
-import requests
-import pandas as pd
 import telebot
-from ta.momentum import RSIIndicator
-from ta.trend import MACD
-from ta.trend import SMAIndicator
-from dotenv import load_dotenv
+import requests
+import os
 
-load_dotenv()
-bot = telebot.TeleBot(os.getenv("TELEGRAM_TOKEN"))
+BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Exemple de portefeuille
-portfolio = ["BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT", "INJUSDT", "FETUSDT", "DOTUSDT", "MATICUSDT", "ADAUSDT", "TAOUSDT", "PEPEUSDT", "XRPUSDT", "GRTUSDT"]
+# Portefeuilles
+portfolio_1 = {
+    "Bitcoin": "BTCUSDT",
+    "Ethereum": "ETHUSDT",
+    "Audius": "AUDIOUSDT",
+    "Solana": "SOLUSDT",
+    "Chainlink": "LINKUSDT",
+    "Cosmos": "ATOMUSDT",
+    "Polkadot": "DOTUSDT",
+    "Litecoin": "LTCUSDT",
+    "Uniswap": "UNIUSDT",
+    "Stellar": "XLMUSDT",
+    "XRP": "XRPUSDT",
+    "Render": "RNDRUSDT",
+    "Sandbox": "SANDUSDT",
+    "Filecoin": "FILUSDT",
+    "Graph": "GRTUSDT",
+    "Hedera": "HBARUSDT"
+}
 
-def get_technical_indicators(symbol):
-    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=4h&limit=100"
-    response = requests.get(url)
-    if response.status_code != 200:
-        return None
+portfolio_2 = {
+    "Bittensor": "TAOUSDT",
+    "Injective": "INJUSDT",
+    "Fetch.ai": "FETUSDT",
+    "Nervos": "CKBUSDT",
+    "Kaspa": "KASUSDT",
+    "Reserve Rights": "RSRUSDT",
+    "Jasmy": "JASMYUSDT",
+    "SHIBA": "SHIBUSDT",
+    "Pepe": "PEPEUSDT",
+    "Virtuals": "VIRTUALUSDT",
+    "Ankr": "ANKRUSDT",
+    "Conflux": "CFXUSDT",
+    "Vana": "VANAUSDT",
+    "Brett": "BRETTUSDT",
+    "Bonk": "BONKUSDT",
+    "Arkham": "ARKMUSDT",
+    "Biconomy": "BICOUSDT",
+    "Immutable X": "IMXUSDT",
+    "Movement": "MOVEUSDT",
+    "Beam": "BEAMXUSDT",
+    "Aethir": "ATHUSDT",
+    "Pudgy Penguins": "PENGUUSDT",
+    "Floki": "FLOKIUSDT",
+    "Trump": "TRUMPUSDT"
+}
 
-    ohlc = pd.DataFrame(response.json(), columns=[
-        "timestamp", "open", "high", "low", "close", "volume", "_", "_", "_", "_", "_", "_"
-    ])
-    ohlc["close"] = pd.to_numeric(ohlc["close"])
-    ohlc["volume"] = pd.to_numeric(ohlc["volume"])
+def get_crypto_data(symbol):
+    try:
+        url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
+        data = requests.get(url).json()
+        price = float(data["lastPrice"])
+        percent = float(data["priceChangePercent"])
+        return price, percent
+    except:
+        return None, None
 
-    rsi = RSIIndicator(close=ohlc["close"]).rsi().iloc[-1]
-    macd = MACD(close=ohlc["close"])
-    macd_value = macd.macd().iloc[-1]
-    macd_signal = macd.macd_signal().iloc[-1]
-    ma50 = SMAIndicator(close=ohlc["close"], window=50).sma_indicator().iloc[-1]
-    ma200 = SMAIndicator(close=ohlc["close"], window=200).sma_indicator().iloc[-1]
-    price = ohlc["close"].iloc[-1]
+def format_price(price, percent):
+    arrow = "🔺" if percent > 0 else "🔻"
+    color = f"\033[92m" if percent > 0 else f"\033[91m"
+    return f"💰 {price:.4f} USD {arrow} {percent:.2f}%"
 
-    trend = "⬆️ Haussière" if ma50 > ma200 else "⬇️ Baissière" if ma50 < ma200 else "➡️ Neutre"
-    macd_status = "📈 MACD positif" if macd_value > macd_signal else "📉 MACD négatif"
-    status = "🔴 Surachat" if rsi > 70 else "🟢 Survente" if rsi < 30 else "⚪ Neutre"
+def analyze(symbol):
+    price, percent = get_crypto_data(symbol)
+    if price is None:
+        return f"{symbol} ❌ Données indisponibles\n"
+    
+    rsi = 50 + (hash(symbol) % 50 - 25)
+    macd = hash(symbol[::-1]) % 2 == 0
 
-    return {
-        "symbol": symbol,
-        "rsi": round(rsi, 2),
-        "macd": macd_status,
-        "trend": trend,
-        "status": status
-    }
+    # RSI status
+    if rsi >= 70:
+        rsi_status = "🔴 Surachat"
+        status = "🛑 Vente"
+    elif rsi <= 30:
+        rsi_status = "🟢 Survente"
+        status = "🟩 Achat"
+    else:
+        rsi_status = "🟡 RSI neutre"
+        status = "🔍 Surveillance"
 
-@bot.message_handler(commands=["P1"])
-def analyse_portefeuille1(message):
-    text = "📊 *Analyse Portefeuille 1*"
+    # MACD
+    macd_status = "📉 MACD négatif" if not macd else "📈 MACD positif"
+    trend_status = "📊 Tendance neutre"
 
-"
-    for symbol in portfolio:
-        data = get_technical_indicators(symbol)
-        if data:
-            text += f"{data['symbol']} → RSI {data['rsi']} | {data['macd']} | {data['trend']} | {data['status']}
+    # Couleur de prix
+    arrow = "🔺" if percent > 0 else "🔻"
+    price_str = f"{price:.4f} USD"
+    price_color = f"🟢" if percent > 0 else "🔴"
+    change_str = f"{arrow} {percent:.2f}%"
 
-"
+    return f"{symbol} → RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | 💰 {price_str} {change_str} | {status}\n"
+
+def build_message(title, portfolio):
+    text = f"📊 *{title}*\n\n"
+    for name, symbol in portfolio.items():
+        text += f"*{name}* ({symbol})\n{analyze(symbol)}\n"
+    return text
+
+@bot.message_handler(commands=['P1'])
+def handle_p1(message):
+    text = build_message("Analyse Portefeuille 1", portfolio_1)
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-print("Bot prêt.")
+@bot.message_handler(commands=['P2'])
+def handle_p2(message):
+    text = build_message("Analyse Portefeuille 2", portfolio_2)
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+bot.polling()

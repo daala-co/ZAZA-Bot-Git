@@ -69,7 +69,7 @@ def signal_response(message):
     if not s_symbols:
         bot.send_message(message.chat.id, "⚠️ Aucune crypto avec un signal d'achat ou de vente détecté.")
         return
-    text = "*📊 Signaux détectés :*"
+    text = "*Signaux détectés :*"
 
 "
     for sym in s_symbols:

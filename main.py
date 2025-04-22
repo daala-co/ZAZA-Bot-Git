@@ -83,7 +83,7 @@ def rsi_response(message):
     if not ss_symbols:
         bot.send_message(message.chat.id, "⚠️ Aucune crypto en surachat ou survente détectée.")
         return
-    text = "*📊 Surachat / Survente :*
+    text = "*📉 Cryptos en survente détectées :*"
 
 "
     for sym in ss_symbols:

@@ -1,100 +1,69 @@
 
 import os
-import requests
 import telebot
+import requests
 
-BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 portfolio_1 = [
-    "BTCUSDT", "ETHUSDT", "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "ATOMUSDT",
-    "DOGEUSDT", "DOTUSDT", "FILUSDT", "GRTUSDT", "HBARUSDT", "LINKUSDT", "LTCUSDT",
-    "ONDOUSDT", "POLUSDT", "RNDRUSDT", "SANDUSDT", "SOLUSDT", "UNIUSDT", "XLMUSDT", "XRPUSDT"
+    "BTCUSDT", "ETHUSDT", "SOLUSDT", "ADAUSDT", "DOTUSDT", "LINKUSDT", "LTCUSDT",
+    "AVAXUSDT", "MATICUSDT", "FILUSDT", "XLMUSDT", "ATOMUSDT", "HBARUSDT", "GRTUSDT",
+    "AAVEUSDT", "APEUSDT", "SANDUSDT", "UNIUSDT", "TAOUSDT", "RNDRUSDT"
 ]
 
 portfolio_2 = [
-    "FETUSDT", "INJUSDT", "JASMYUSDT", "RSRUSDT", "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT",
-    "BRETTUSDT", "BONKUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT", "BEAMXUSDT", "ATHUSDT",
-    "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"
+    "FETUSDT", "INJUSDT", "RSRUSDT", "JASMYUSDT", "SHIBUSDT", "PEPEUSDT", "ANKRUSDT",
+    "CFXUSDT", "VANAUSDT", "BRETTUSDT", "BONKUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT",
+    "MOVEUSDT", "BEAMXUSDT", "AUDIOUSDT", "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT"
 ]
 
-symbol_to_name = {
-    "BTCUSDT": "Bitcoin", "ETHUSDT": "Ethereum", "AAVEUSDT": "Aave", "ADAUSDT": "Cardano",
-    "ALGOUSDT": "Algorand", "APEUSDT": "ApeCoin", "ATOMUSDT": "Cosmos", "DOGEUSDT": "Dogecoin",
-    "DOTUSDT": "Polkadot", "FILUSDT": "Filecoin", "GRTUSDT": "The Graph", "HBARUSDT": "Hedera",
-    "LINKUSDT": "Chainlink", "LTCUSDT": "Litecoin", "ONDOUSDT": "Ondo Finance", "POLUSDT": "Polygon",
-    "RNDRUSDT": "Render", "SANDUSDT": "The Sandbox", "SOLUSDT": "Solana", "UNIUSDT": "Uniswap",
-    "XLMUSDT": "Stellar", "XRPUSDT": "Ripple", "FETUSDT": "Fetch.ai", "INJUSDT": "Injective",
-    "JASMYUSDT": "JasmyCoin", "RSRUSDT": "Reserve Rights", "VIRTUALUSDT": "Virtual Protocol",
-    "ANKRUSDT": "Ankr", "CFXUSDT": "Conflux", "VANAUSDT": "Vana", "BRETTUSDT": "Brett",
-    "BONKUSDT": "Bonk", "ARKMUSDT": "Arkham", "BICOUSDT": "Biconomy", "IMXUSDT": "Immutable X",
-    "MOVEUSDT": "Movement", "BEAMXUSDT": "Beam", "ATHUSDT": "Aethir", "PENGUUSDT": "Pudgy Penguins",
-    "FLOKIUSDT": "Floki", "TRUMPUSDT": "Trump", "AUDIOUSDT": "Audius"
-}
+def get_token_name(symbol):
+    names = {
+        "BTCUSDT": "Bitcoin", "ETHUSDT": "Ethereum", "SOLUSDT": "Solana", "ADAUSDT": "Cardano",
+        "DOTUSDT": "Polkadot", "LINKUSDT": "Chainlink", "LTCUSDT": "Litecoin", "AVAXUSDT": "Avalanche",
+        "MATICUSDT": "Polygon", "FILUSDT": "Filecoin", "XLMUSDT": "Stellar", "ATOMUSDT": "Cosmos",
+        "HBARUSDT": "Hedera", "GRTUSDT": "The Graph", "AAVEUSDT": "Aave", "APEUSDT": "ApeCoin",
+        "SANDUSDT": "The Sandbox", "UNIUSDT": "Uniswap", "TAOUSDT": "Bittensor", "RNDRUSDT": "Render",
+        "FETUSDT": "Fetch.ai", "INJUSDT": "Injective", "RSRUSDT": "Reserve Rights", "JASMYUSDT": "JasmyCoin",
+        "SHIBUSDT": "SHIBA INU", "PEPEUSDT": "Pepe", "ANKRUSDT": "Ankr", "CFXUSDT": "Conflux",
+        "VANAUSDT": "Vana", "BRETTUSDT": "Brett", "BONKUSDT": "Bonk", "ARKMUSDT": "Arkham",
+        "BICOUSDT": "Biconomy", "IMXUSDT": "Immutable X", "MOVEUSDT": "Movement", "BEAMXUSDT": "Beam",
+        "AUDIOUSDT": "Audius", "PENGUUSDT": "Pudgy Penguins", "FLOKIUSDT": "Floki", "TRUMPUSDT": "Trump"
+    }
+    return names.get(symbol, symbol)
 
-def get_crypto_data(symbol):
-    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
-    try:
-        response = requests.get(url).json()
-        price = float(response["lastPrice"])
-        percent = float(response["priceChangePercent"])
-        return price, percent
-    except:
-        return None, None
+def format_price(symbol, price, change):
+    arrow = "📈" if float(change) > 0 else "📉"
+    color = "🟢" if float(change) > 0 else "🔴"
+    return f"{arrow} {price} {color} ({change}%)"
 
-def format_price(price, percent):
-    if price is None:
-        return "❌ Données indisponibles"
-    arrow = "🔻" if percent < 0 else "🔺"
-    return f"💰 {price:.4f} USD {arrow} {percent:.2f}%"
+def build_line(symbol, rsi, macd_status, trend_status, action, price, change):
+    token_name = get_token_name(symbol)
+    price_info = format_price(symbol, price, change)
+    return f"*{token_name}* ({symbol})\n→ RSI {rsi:.2f} | {macd_status} | {trend_status} | {price_info} | {action}\n"
 
-def get_analysis(symbol):
-    price, percent = get_crypto_data(symbol)
-    rsi = 50 + (hash(symbol) % 50 - 25)
-    macd_pos = hash(symbol) % 2 == 0
+# Commandes de simulation Telegram
+@bot.message_handler(commands=['start'])
+def start_message(message):
+    bot.reply_to(message, "🤖 Bot actif. Utilise /P1, /P2 ou /tot pour voir ton portefeuille.")
 
-    text = "*📊 Analyse Portefeuille 1*"
-    if rsi >= 70:
-        rsi_status = "🔴 Surachat"
-    elif rsi <= 30:
-        rsi_status = "🟢 Survente"
-        action = "🟩 Achat"
-    else:
-        rsi_status = "🟡 RSI neutre"
-        action = "🔍 Surveillance"
-
-    macd_status = "📉 MACD négatif" if not macd_pos else "📈 MACD positif"
-    trend_status = "📊 Tendance neutre"
-    price_info = format_price(price, percent)
-    token_name = symbol_to_name.get(symbol, symbol.replace("USDT", ""))
-
-    return f"*{token_name}* ({symbol})
-{symbol} -> RSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | {price_info} | {action}
-"
-
-def build_message(title, portfolio):
-    text = f"📦 *{title} – Analyse Complète*
-
-"
-    for symbol in portfolio:
-        text += get_analysis(symbol) + "
-"
-    return text
-
-@bot.message_handler(commands=["P1"])
+@bot.message_handler(commands=['P1'])
 def handle_p1(message):
-    msg = build_message("Portefeuille 1", portfolio_1)
-    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
+    text = "*📊 Portefeuille 1 :*
+"
+    for symbol in portfolio_1:
+        line = build_line(symbol, 50, "MACD 🔽", "MA50 📉", "🔍 Surveillance", "50.23$", "-2.5")
+        text += line + "\n"
+    bot.reply_to(message, text, parse_mode="Markdown")
 
-@bot.message_handler(commands=["P2"])
+@bot.message_handler(commands=['P2'])
 def handle_p2(message):
-    msg = build_message("Portefeuille 2", portfolio_2)
-    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
-
-@bot.message_handler(commands=["tot"])
-def handle_tot(message):
-    full = portfolio_1 + portfolio_2
-    msg = build_message("Résumé Global du Portefeuille", full)
-    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
+    text = "*📊 Portefeuille 2 :*
+"
+    for symbol in portfolio_2:
+        line = build_line(symbol, 45, "MACD 🔼", "MA200 📈", "🟢 Achat", "0.023$", "+8.1")
+        text += line + "\n"
+    bot.reply_to(message, text, parse_mode="Markdown")
 
 bot.polling()

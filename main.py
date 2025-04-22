@@ -1,4 +1,3 @@
-
 import os
 import requests
 import telebot
@@ -7,17 +6,28 @@ BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
 portfolio_1 = [
-    "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "ATOMUSDT", "BTCUSDT",
-    "DOGEUSDT", "DOTUSDT", "ETHUSDT", "FILUSDT", "GRTUSDT", "HBARUSDT",
-    "LINKUSDT", "LTCUSDT", "ONDOUSDT", "POLUSDT", "RNDRUSDT", "SANDUSDT",
-    "SOLUSDT", "UNIUSDT", "XLMUSDT", "XRPUSDT"
+    "BTCUSDT", "ETHUSDT", "AAVEUSDT", "ADAUSDT", "ALGOUSDT", "APEUSDT", "ATOMUSDT",
+    "DOGEUSDT", "DOTUSDT", "FILUSDT", "GRTUSDT", "HBARUSDT", "LINKUSDT", "LTCUSDT",
+    "ONDOUSDT", "POLUSDT", "RNDRUSDT", "SANDUSDT", "SOLUSDT", "UNIUSDT", "XLMUSDT", "XRPUSDT"
 ]
-portfolio_2 = [
-    "FETUSDT", "INJUSDT", "CKBUSDT", "KASUSDT", "RSRUSDT", "JASMYUSDT",
-    "SHIBUSDT", "PEPEUSDT", "VIRTUALUSDT", "ANKRUSDT", "CFXUSDT", "VANAUSDT",
-    "BRETTUSDT", "BONKUSDT", "ARKMUSDT", "BICOUSDT", "IMXUSDT", "MOVEUSDT",
-    "BEAMXUSDT", "ATHUSDT", "PENGUUSDT", "FLOKIUSDT", "TRUMPUSDT", "AUDIOUSDT"
-]
+
+symbol_to_name = {
+    "BTCUSDT": "Bitcoin", "ETHUSDT": "Ethereum", "AAVEUSDT": "Aave", "ADAUSDT": "Cardano",
+    "ALGOUSDT": "Algorand", "APEUSDT": "ApeCoin", "ATOMUSDT": "Cosmos", "DOGEUSDT": "Dogecoin",
+    "DOTUSDT": "Polkadot", "FILUSDT": "Filecoin", "GRTUSDT": "The Graph", "HBARUSDT": "Hedera",
+    "LINKUSDT": "Chainlink", "LTCUSDT": "Litecoin", "ONDOUSDT": "Ondo", "POLUSDT": "Polygon",
+    "RNDRUSDT": "Render", "SANDUSDT": "The Sandbox", "SOLUSDT": "Solana", "UNIUSDT": "Uniswap",
+    "XLMUSDT": "Stellar", "XRPUSDT": "Ripple"
+}
+
+holdings_chf = {
+    "ETHUSDT": 15659.19, "BTCUSDT": 18817.65, "XRPUSDT": 9484.97, "SOLUSDT": 4885.52,
+    "ONDOUSDT": 2525.24, "ADAUSDT": 1179.07, "DOGEUSDT": 1121.80, "ATOMUSDT": 910.56,
+    "HBARUSDT": 613.84, "APEUSDT": 508.31, "AAVEUSDT": 455.22, "LINKUSDT": 439.98,
+    "RNDRUSDT": 816.88, "POLUSDT": 391.01, "ALGOUSDT": 185.43, "DOTUSDT": 154.53,
+    "FILUSDT": 242.15, "UNIUSDT": 220.84, "SANDUSDT": 219.85, "PEPEUSDT": 209.44,
+    "GRTUSDT": 60.78, "LTCUSDT": 62.63, "XLMUSDT": 84.72, "USDT": 80.00
+}
 
 def get_crypto_data(symbol):
     url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
@@ -30,71 +40,48 @@ def get_crypto_data(symbol):
         return None, None
 
 def format_price(price, percent):
-    if price is None or percent is None:
+    if price is None:
         return "❌ Données indisponibles"
-    arrow = "🔺" if percent > 0 else "🔻"
-    color = "🟢" if percent > 0 else "🔴"
-    return f"💰 {price:.4f} USD {color} {arrow} {percent:.2f}%"
-
-def get_token_name(symbol):
-    mapping = {
-        "RNDRUSDT": "RENDER",
-        "CKBUSDT": "NERVOS NETWORK",
-        "FETUSDT": "FETCH.AI",
-        "ATHUSDT": "AETHIR",
-        "ARKMUSDT": "ARKHAM",
-        "IMXUSDT": "IMMUTABLE X",
-        "BONKUSDT": "BONK",
-        "BRETTUSDT": "BRETT",
-        "VANAUSDT": "VANA",
-        "MOVEUSDT": "MOVEMENT",
-        "BEAMXUSDT": "BEAM",
-        "PENGUUSDT": "PUDGY PENGUINS",
-        "TRUMPUSDT": "TRUMP",
-        "AUDIOUSDT": "AUDIUS"
-    }
-    return mapping.get(symbol, symbol.replace("USDT", ""))
+    arrow = "🔻" if percent < 0 else "🔺"
+    color = "🔴" if percent < 0 else "🟢"
+    return f"{arrow} {price:.4f} USD ({color} {percent:.2f}%)"
 
 def get_analysis(symbol):
     price, percent = get_crypto_data(symbol)
     rsi = 50 + (hash(symbol) % 50 - 25)
     macd_pos = hash(symbol) % 2 == 0
-    status = "🔍 Surveillance"
-    rsi_status = "🟡 RSI neutre"
-    if rsi > 70:
+
+    if rsi >= 70:
         rsi_status = "🔴 Surachat"
-        status = "🛑 Vente"
-    elif rsi < 30:
+        action = "🛑 Vente"
+    elif rsi <= 30:
         rsi_status = "🟢 Survente"
-        status = "🟢 Achat"
+        action = "🟩 Achat"
+    else:
+        rsi_status = "🟡 RSI neutre"
+        action = "🔍 Surveillance"
+
     macd_status = "📉 MACD négatif" if not macd_pos else "📈 MACD positif"
-    trend = "📊 Tendance neutre"
-    price_part = format_price(price, percent)
-    return f"*{get_token_name(symbol)}* ({symbol})\nRSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend} | {price_part} | {status}\n"
+    trend_status = "📊 Tendance neutre"
+    price_info = format_price(price, percent)
+    token_name = symbol_to_name.get(symbol, symbol.replace("USDT", ""))
+
+    variation = ""
+    if symbol in holdings_chf:
+        variation = f"(CHF {holdings_chf[symbol]:,.2f})"
+
+    return f"*{token_name} ({symbol})* – 💰 {variation}\n{price_info}\nRSI {rsi:.2f} | {rsi_status} | {macd_status} | {trend_status} | {action}\n"
 
 def build_message(title, portfolio):
+    ordered = sorted(portfolio, key=lambda s: -holdings_chf.get(s, 0))
     text = f"📦 *{title} – Analyse Complète*\n\n"
-    for symbol in portfolio:
+    for symbol in ordered:
         text += get_analysis(symbol) + "\n"
     return text
 
 @bot.message_handler(commands=["P1"])
 def handle_p1(message):
-    text = build_message("Portefeuille 1", portfolio_1)
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-
-@bot.message_handler(commands=["P2"])
-def handle_p2(message):
-    text = build_message("Portefeuille 2", portfolio_2)
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-
-@bot.message_handler(commands=["tot"])
-def handle_tot(message):
-    gainers = [s for s in portfolio_1 + portfolio_2 if get_crypto_data(s)[1] and get_crypto_data(s)[1] > 0]
-    losers = [s for s in portfolio_1 + portfolio_2 if get_crypto_data(s)[1] and get_crypto_data(s)[1] < 0]
-    text = "📊 *Résumé global du portefeuille*\n\n"
-    text += f"💹 Top hausses : {', '.join(gainers[:3]) if gainers else 'aucune'}\n"
-    text += f"📉 Top baisses : {', '.join(losers[:3]) if losers else 'aucune'}\n"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
+    msg = build_message("Portefeuille 1", portfolio_1)
+    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
 
 bot.polling()

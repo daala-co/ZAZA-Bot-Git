@@ -48,7 +48,7 @@ def get_technical_indicators(symbol):
 
 @bot.message_handler(commands=["P1"])
 def analyse_portefeuille1(message):
-    text = "📊 *Analyse Portefeuille 1*
+    text = "📊 *Analyse Portefeuille 1*"
 
 "
     for symbol in portfolio:

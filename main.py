@@ -18,7 +18,7 @@ portfolio_1 = {
     "Uniswap": "UNIUSDT",
     "Stellar": "XLMUSDT",
     "XRP": "XRPUSDT",
-    "Render": "RNDRUSDT",
+    "Render": "RENDERUSDT",
     "Sandbox": "SANDUSDT",
     "Filecoin": "FILUSDT",
     "Graph": "GRTUSDT",

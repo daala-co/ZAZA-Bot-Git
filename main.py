@@ -1,4 +1,3 @@
-
 import telebot
 import requests
 import os
@@ -91,3 +90,6 @@ def rsi_response(message):
         text += get_analysis(sym) + "
 "
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+if __name__ == "__main__":
+    bot.polling()

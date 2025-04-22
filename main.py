@@ -1,109 +1,62 @@
-import telebot
-import requests
+
 import os
+import requests
+import pandas as pd
+import telebot
+from ta.momentum import RSIIndicator
+from ta.trend import MACD
+from ta.trend import SMAIndicator
+from dotenv import load_dotenv
 
-BOT_TOKEN = os.getenv("TELEGRAM_TOKEN")
-bot = telebot.TeleBot(BOT_TOKEN)
+load_dotenv()
+bot = telebot.TeleBot(os.getenv("TELEGRAM_TOKEN"))
 
-# Portefeuille 1
-categories = {
-    "Blue Chips": ["BTCUSDT", "ETHUSDT", "ADAUSDT", "DOTUSDT", "SOLUSDT", "LTCUSDT", "XRPUSDT", "XLMUSDT"],
-    "DeFi & Finance": ["UNIUSDT", "AAVEUSDT", "LINKUSDT", "FILUSDT", "ATOMUSDT", "HBARUSDT"],
-    "AI & Data": ["GRTUSDT"],
-    "NFT / Gaming": ["SANDUSDT", "APEUSDT"],
-    "Divers / Autres": ["ALGOUSDT", "DOGEUSDT", "ONDOUSDT", "POLUSDT", "VIRTUALUSDT", "MOVEUSDT"]
-}
+# Exemple de portefeuille
+portfolio = ["BTCUSDT", "ETHUSDT", "AUDIOUSDT", "SOLUSDT", "LINKUSDT", "ATOMUSDT", "INJUSDT", "FETUSDT", "DOTUSDT", "MATICUSDT", "ADAUSDT", "TAOUSDT", "PEPEUSDT", "XRPUSDT", "GRTUSDT"]
 
-# Portefeuille 2
-categories_P2 = {
-    "AI & Data": ["TAOUSDT", "INJUSDT", "FETUSDT", "RSRUSDT", "JASMYUSDT", "VANAUSDT", "ARKMUSDT"],
-    "Infra & Layer 1/2": ["CKBUSDT", "KASUSDT", "CFXUSDT", "ANKRUSDT", "BEAMXUSDT", "BICOUSDT", "ATHUSDT"],
-    "Meme & Fun": ["PEPEUSDT", "SHIBUSDT", "BONKUSDT", "BRETTUSDT", "PENGUUSDT", "TRUMPUSDT"],
-    "NFT / Gaming": ["AUDIOUSDT"]
-}
+def get_technical_indicators(symbol):
+    url = f"https://api.binance.com/api/v3/klines?symbol={symbol}&interval=4h&limit=100"
+    response = requests.get(url)
+    if response.status_code != 200:
+        return None
 
-def get_crypto_data(symbol):
-    try:
-        url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
-        data = requests.get(url).json()
-        price = float(data["lastPrice"])
-        percent = float(data["priceChangePercent"])
-        return price, percent
-    except:
-        return None, None
+    ohlc = pd.DataFrame(response.json(), columns=[
+        "timestamp", "open", "high", "low", "close", "volume", "_", "_", "_", "_", "_", "_"
+    ])
+    ohlc["close"] = pd.to_numeric(ohlc["close"])
+    ohlc["volume"] = pd.to_numeric(ohlc["volume"])
 
-def format_price_change(percent):
-    if percent is None:
-        return ""
-    arrow = "🔺" if percent > 0 else "🔻"
-    return f"{arrow} {percent:.2f}%"
+    rsi = RSIIndicator(close=ohlc["close"]).rsi().iloc[-1]
+    macd = MACD(close=ohlc["close"])
+    macd_value = macd.macd().iloc[-1]
+    macd_signal = macd.macd_signal().iloc[-1]
+    ma50 = SMAIndicator(close=ohlc["close"], window=50).sma_indicator().iloc[-1]
+    ma200 = SMAIndicator(close=ohlc["close"], window=200).sma_indicator().iloc[-1]
+    price = ohlc["close"].iloc[-1]
 
-def format_price(price, percent):
-    if price is None:
-        return ""
-    color = "🟢" if percent > 0 else "🔴" if percent < 0 else "➖"
-    return f"{color} {price:.4f} USD"
+    trend = "⬆️ Haussière" if ma50 > ma200 else "⬇️ Baissière" if ma50 < ma200 else "➡️ Neutre"
+    macd_status = "📈 MACD positif" if macd_value > macd_signal else "📉 MACD négatif"
+    status = "🔴 Surachat" if rsi > 70 else "🟢 Survente" if rsi < 30 else "⚪ Neutre"
 
-def get_analysis(symbol):
-    price, percent = get_crypto_data(symbol)
-    rsi = 50 + (hash(symbol) % 50 - 25)
-    macd_pos = hash(symbol) % 2 == 0
+    return {
+        "symbol": symbol,
+        "rsi": round(rsi, 2),
+        "macd": macd_status,
+        "trend": trend,
+        "status": status
+    }
 
-    if rsi > 70:
-        rsi_status = "🔴 Surachat"
-        signal = "🛑 Vente"
-    elif rsi < 30:
-        rsi_status = "🟢 Survente"
-        signal = "🟩 Achat"
-    else:
-        rsi_status = "🟡 RSI neutre"
-        signal = "🔍 Surveillance"
+@bot.message_handler(commands=["P1"])
+def analyse_portefeuille1(message):
+    text = "📊 *Analyse Portefeuille 1*
 
-    macd_status = "📈 MACD positif" if macd_pos else "📉 MACD négatif"
-    trend_status = "📊 Tendance neutre"
-    price_str = format_price(price, percent)
-    change_str = format_price_change(percent)
+"
+    for symbol in portfolio:
+        data = get_technical_indicators(symbol)
+        if data:
+            text += f"{data['symbol']} → RSI {data['rsi']} | {data['macd']} | {data['trend']} | {data['status']}
 
-    full_text = f"{symbol} → RSI {rsi} | {rsi_status} | {macd_status} | {trend_status} | {price_str} {change_str} | {signal}\n"
-    return full_text, signal, rsi_status
-
-def build_response(cats):
-    text = ""
-    for title, symbols in cats.items():
-        text += f"\n📦 *{title}*\n"
-        for sym in symbols:
-            res, _, _ = get_analysis(sym)
-            text += res + "\n"
-    return text
-
-@bot.message_handler(commands=['P1'])
-def handle_P1(message):
-    msg = build_response(categories)
-    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
-
-@bot.message_handler(commands=['P2'])
-def handle_P2(message):
-    msg = build_response(categories_P2)
-    bot.send_message(message.chat.id, msg, parse_mode="Markdown")
-
-@bot.message_handler(commands=['SS'])
-def handle_SS(message):
-    text = "📉 *Crypto en Surachat / Survente*\n"
-    for sym_list in list(categories.values()) + list(categories_P2.values()):
-        for sym in sym_list:
-            result, _, rsi_status = get_analysis(sym)
-            if "Surachat" in rsi_status or "Survente" in rsi_status:
-                text += result + "\n"
+"
     bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-@bot.message_handler(commands=['S'])
-def handle_S(message):
-    text = "📢 *Crypto avec Signal Achat ou Vente*\n"
-    for sym_list in list(categories.values()) + list(categories_P2.values()):
-        for sym in sym_list:
-            result, signal, _ = get_analysis(sym)
-            if "Achat" in signal or "Vente" in signal:
-                text += result + "\n"
-    bot.send_message(message.chat.id, text, parse_mode="Markdown")
-
-bot.polling()
+print("Bot prêt.")

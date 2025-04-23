@@ -1,3 +1,9 @@
+
+AUTHORIZED_USER_ID = 5765277693
+
+def is_authorized(message):
+    return message.from_user.id == AUTHORIZED_USER_ID
+
 import os
 import requests
 import telebot

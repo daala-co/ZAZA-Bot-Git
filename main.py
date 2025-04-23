@@ -1,44 +1,60 @@
-# main.py - Fichier final optimisé avec affichage structuré
-
+import os
 import telebot
-from utils import get_crypto_data, format_crypto_display
+from utils import get_crypto_data, format_crypto_display, get_portfolio_1, get_portfolio_2, get_signals, get_extreme_rsi, get_total_summary
 
-BOT_TOKEN = "TON_TOKEN_ICI"
+# Protection d'accès
+AUTHORIZED_USER_ID = 5765277693
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 
-AUTHORIZED_USERS = [123456789]  # Remplacer par ton ID Telegram
+# Vérification d'accès
+def is_authorized(message):
+    return message.from_user.id == AUTHORIZED_USER_ID
 
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-    bot.reply_to(message, "Bienvenue ! Tape /P1 ou /P2 pour analyser ton portefeuille.")
-
-@bot.message_handler(commands=['P1'])
-def analyse_portefeuille1(message):
-    if message.chat.id not in AUTHORIZED_USERS:
-        return bot.reply_to(message, "⛔ Accès refusé.")
-    response = format_crypto_display("P1")
-    bot.reply_to(message, response)
+@bot.message_handler(commands=['P1', 'portefeuille1'])
+def handle_p1(message):
+    if not is_authorized(message):
+        return
+    data = get_portfolio_1()
+    for line in data:
+        bot.send_message(message.chat.id, line)
 
 @bot.message_handler(commands=['P2'])
-def analyse_portefeuille2(message):
-    if message.chat.id not in AUTHORIZED_USERS:
-        return bot.reply_to(message, "⛔ Accès refusé.")
-    response = format_crypto_display("P2")
-    bot.reply_to(message, response)
+def handle_p2(message):
+    if not is_authorized(message):
+        return
+    data = get_portfolio_2()
+    for line in data:
+        bot.send_message(message.chat.id, line)
 
 @bot.message_handler(commands=['S'])
-def analyse_signaux(message):
-    if message.chat.id not in AUTHORIZED_USERS:
-        return bot.reply_to(message, "⛔ Accès refusé.")
-    response = format_crypto_display("SIGNAL")
-    bot.reply_to(message, response or "❗ Aucun signal d'achat ou de vente clair pour l'instant.")
+def handle_signals(message):
+    if not is_authorized(message):
+        return
+    signals = get_signals()
+    if signals:
+        text = "*📊 Signaux d'achat/vente détectés :*\n\n" + "\n\n".join(signals)
+    else:
+        text = "⚠️ Aucun signal d'achat ou de vente détecté pour le moment."
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
 @bot.message_handler(commands=['SS'])
-def analyse_surachat_survente(message):
-    if message.chat.id not in AUTHORIZED_USERS:
-        return bot.reply_to(message, "⛔ Accès refusé.")
-    response = format_crypto_display("SURVEILLANCE")
-    bot.reply_to(message, response or "❗ Aucune crypto actuellement en surachat ou survente.")
+def handle_extremes(message):
+    if not is_authorized(message):
+        return
+    alerts = get_extreme_rsi()
+    if alerts:
+        text = "*📈 Cryptos en surachat ou survente :*\n\n" + "\n\n".join(alerts)
+    else:
+        text = "ℹ️ Aucune crypto actuellement en surachat ou survente."
+    bot.send_message(message.chat.id, text, parse_mode="Markdown")
 
-if __name__ == "__main__":
-    bot.polling()
+@bot.message_handler(commands=['tot'])
+def handle_tot(message):
+    if not is_authorized(message):
+        return
+    summary = get_total_summary()
+    bot.send_message(message.chat.id, summary, parse_mode="Markdown")
+
+bot.polling()

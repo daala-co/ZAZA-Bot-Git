@@ -27,7 +27,6 @@ def format_crypto_display(name, symbol, data, rsi_4h, rsi_1d, macd, ma50, ma200,
     f"📦 Volume : {volume_level}\n"
     f"📌 Statut : {status_icon} {status}"
 )
-    )
     return formatted
 
 def get_rsi_emoji(value):

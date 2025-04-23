@@ -16,24 +16,17 @@ def format_crypto_display(name, symbol, data, rsi_4h, rsi_1d, macd, ma50, ma200,
     status_line = f"📌 Statut : {status}"
 
     formatted = (
-        f"🔵 *{name.upper()} ({symbol})*
-"
-        f"💰 Prix actuel : {price:.3f} $ {price_color} {change:.2f}%
-"
-        f"📊 RSI 4h : {rsi_4h} {get_rsi_emoji(rsi_4h)}
-"
-        f"📊 RSI 1D : {rsi_1d} {get_rsi_emoji(rsi_1d)}
-"
-        f"📈 MACD : {get_macd_emoji(macd)} {macd}
-"
-        f"📏 MA50 : {ma50} / MA200 : {ma200} {get_ma_trend(ma50, ma200)}
-"
-        f"📉 Support : {support} / Résistance : {resistance}
-"
-        f"📦 Volume : {volume}
-"
-        f"{status_line}
-"
+        return (
+    f"🔵 *{name.upper()} ({symbol})*\n"
+    f"💰 Prix actuel : {price} $ {'🔺' if price_change >= 0 else '🔻'} {price_change_percent}%\n"
+    f"📊 RSI 4h : {rsi_4h} {rsi_4h_icon}\n"
+    f"📊 RSI 1D : {rsi_1d} {rsi_1d_icon}\n"
+    f"📈 MACD : {macd_icon} {macd_trend}\n"
+    f"📏 MA50 : {ma_50} / MA200 : {ma_200} {ma_trend}\n"
+    f"📉 Support : {support} / Résistance : {resistance}\n"
+    f"📦 Volume : {volume_level}\n"
+    f"📌 Statut : {status_icon} {status}"
+)
     )
     return formatted
 

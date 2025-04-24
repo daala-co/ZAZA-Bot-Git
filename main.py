@@ -1,6 +1,6 @@
 import os
 import telebot
-from utils import get_crypto_data, format_crypto_display, get_portfolio_1, get_portfolio_2, get_signals, get_extreme_rsi, get_total_summary
+from utils import get_portfolio_1, get_portfolio_2, get_signals, get_extreme_rsi, get_total_summary
 
 # Protection d'accès
 AUTHORIZED_USER_ID = 5765277693
@@ -18,7 +18,7 @@ def handle_p1(message):
         return
     data = get_portfolio_1()
     for line in data:
-        bot.send_message(message.chat.id, line)
+        bot.send_message(message.chat.id, line, parse_mode="Markdown")
 
 @bot.message_handler(commands=['P2'])
 def handle_p2(message):
@@ -26,7 +26,7 @@ def handle_p2(message):
         return
     data = get_portfolio_2()
     for line in data:
-        bot.send_message(message.chat.id, line)
+        bot.send_message(message.chat.id, line, parse_mode="Markdown")
 
 @bot.message_handler(commands=['S'])
 def handle_signals(message):
